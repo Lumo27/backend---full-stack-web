@@ -1,0 +1,123 @@
+/* 1. VARIABLES GLOBALES (ESTÉTICA CTU) */
+:root {
+    --fondo-absoluto: #050505;
+    --color-terminal: #00ff41;   /* Fósforo Verde / Neón */
+    --color-alerta: #ffb000;     /* Ámbar */
+    --borde-panel: 1px solid #00ff41;
+    --sombra-neon: 0 0 10px rgba(0, 255, 65, 0.2);
+}
+
+/* 2. LA LEY CONSTITUCIONAL Y RESETEO */
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+/* 3. TIPOGRAFÍA Y FONDO */
+body {
+    background-color: var(--fondo-absoluto);
+    color: var(--color-terminal);
+    /* La estética de la terminal del MVP: fuente monoespaciada */
+    font-family: 'Courier New', Courier, monospace;
+    height: 100vh;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+/* 4. CONTENEDOR MAESTRO */
+.bunker-container {
+    width: 95%;
+    max-width: 1200px;
+    height: 90vh;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+/* 5. CONSOLA DE ENTRADA */
+.consola-input {
+    display: flex;
+    gap: 15px;
+    align-items: center;
+    padding: 20px;
+    border: var(--borde-panel);
+    box-shadow: var(--sombra-neon);
+    background-color: #0a0a0a;
+}
+
+.consola-input input {
+    flex-grow: 1; /* El input absorbe todo el espacio sobrante */
+    background: transparent;
+    border: none;
+    border-bottom: 1px solid var(--color-terminal);
+    color: inherit;
+    font-family: inherit;
+    font-size: 1.2rem;
+    outline: none;
+}
+
+.consola-input button {
+    background-color: var(--color-terminal);
+    color: #050505;
+    border: none;
+    padding: 10px 25px;
+    font-family: inherit;
+    font-weight: bold;
+    cursor: pointer;
+    transition: 0.2s;
+}
+
+.consola-input button:hover {
+    background-color: var(--color-alerta);
+    box-shadow: var(--sombra-neon);
+}
+
+/* 6. GRILLA TÁCTICA (CSS GRID) */
+.grid-paneles {
+    display: grid;
+    gap: 20px;
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: 1fr 1fr;
+    flex-grow: 1;
+    min-height: 0; /* permite que la grilla no desborde su contenedor flex */
+}
+
+/* 7. DISEÑO DE CADA PANEL */
+.panel {
+    background-color: #0a0a0a;
+    border: var(--borde-panel);
+    box-shadow: var(--sombra-neon);
+    padding: 15px;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+}
+
+.panel-titulo {
+    border-bottom: 1px dashed var(--color-terminal);
+    padding-bottom: 8px;
+    margin-bottom: 10px;
+    font-size: 1rem;
+}
+
+.contenido-panel {
+    line-height: 1.5;
+    flex-grow: 1;
+}
+
+/* Escudo protector del Panel 3: evita que cientos de enlaces rompan el diseño */
+.scroll-activo {
+    overflow-y: auto;
+    max-height: 100%;
+}
+
+/* Embellecimiento del scroll (Chrome / Edge / Opera) */
+::-webkit-scrollbar {
+    width: 8px;
+}
+
+::-webkit-scrollbar-thumb {
+    background-color: var(--color-terminal);
+}

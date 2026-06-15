@@ -1,0 +1,14 @@
+# Dependencias (se regeneran con npm install)
+node_modules/
+
+# Logs
+npm-debug.log*
+*.log
+
+# Variables de entorno
+.env
+
+# Sistema operativo / editor
+.DS_Store
+Thumbs.db
+.vscode/
