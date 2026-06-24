@@ -1,6 +1,11 @@
 # Dependencias (se regeneran con npm install)
 node_modules/
 
+# Artefactos generados por el robot en runtime
+historial.log
+registro_bunker.txt
+capturas/
+
 # Logs
 npm-debug.log*
 *.log

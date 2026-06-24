@@ -1,74 +1,86 @@
-# TARGET ANALYZER — MVP (Base del proyecto)
+# TARGET ANALYZER — Subproyecto 3 (Robot)
 
 Tecnicatura Universitaria en Desarrollo de Software — UNP — 2026
 
-Base armada del MVP para arrancar a trabajar en equipo. La regla de oro del
-proyecto (del apunte "¿Dónde se ejecuta qué?"): **el frontend vive en el navegador
-y el backend vive en Node.js**. Por eso están en carpetas separadas.
+App full-stack con estética de terminal (CTU / tema búnker): el usuario ingresa una
+URL, el backend la escanea de verdad con un navegador headless y muestra los
+resultados en los paneles. Regla de oro: **frontend en el navegador, backend en Node.js**.
 
 ## Estructura
 
 ```
 target-analyzer/
-├── backend/            <- EL RECEPTOR (corre en Node.js / terminal)
-│   ├── server.js
+├── backend/                <- corre en Node.js / terminal
+│   ├── server.js           <- Receptor v2.3 (ruta + log + delega en el robot)
+│   ├── robot.js            <- Motor de extracción (Puppeteer + Cheerio)
 │   └── package.json
-├── frontend/           <- EL EMISOR (corre en el navegador)
+├── frontend/               <- corre en el navegador
 │   ├── index.html
 │   ├── style.css
-│   └── script.js
-└── README.md
+│   └── script.js           <- Emisor v2.0 (validación + abortar + render de paneles)
+├── README.md
+├── AGENTS.md
+└── .gitignore
 ```
 
-## Cómo levantarlo (en orden)
+## Cómo levantarlo
 
-### 1. Prendé el backend (el búnker que escucha)
+### 1. Backend
 
 ```bash
 cd backend
-npm install        # baja express y cors (crea node_modules)
-node server.js     # o: npm start
+npm install        # instala express, cors, cheerio y puppeteer
+node server.js     # o: npm run dev  (se reinicia solo al guardar)
 ```
 
-Si todo salió bien, la terminal muestra:
+Importante: `npm install` con Puppeteer **descarga un binario de Chrome for Testing**
+(~100-200 MB) la primera vez. Tarda un poco y necesita internet. Cuando termine y
+veas `[BÚNKER CENTRAL]: Escuchando comunicaciones en puerto 3000`, está listo.
 
+### 2. Frontend
+
+Abrí `frontend/index.html` (doble clic o Live Server). Escribí un dominio
+(ej. `ejemplo.com` — el frontend le agrega `https://` solo si falta) y tocá
+`[INICIAR_ESCANEO]`. Si querés cortar un escaneo en curso, `[ABORTAR]`.
+
+## Flujo de datos (de punta a punta)
+
+1. El frontend (`script.js`) valida la URL y la manda por `fetch` POST a `/api/escanear`.
+2. `server.js` recibe, llama a `ejecutarExtraccion(url)` del robot y espera.
+3. `robot.js` lanza Chrome headless con Puppeteer, navega al sitio, saca el HTML
+   renderizado, mide latencia/peso/SSL, y con Cheerio extrae título, descripción,
+   framework, lenguaje (CMS) y servidor.
+4. `server.js` escribe una línea en `historial.log` y devuelve el JSON con tres capas:
+   `identidad`, `tecnologias`, `metricas`.
+5. El frontend reparte esos datos en los paneles: identidad → Panel 1, tecnologías →
+   Panel 2, métricas → Panel 4.
+
+## Forma del JSON de respuesta
+
+```json
+{
+  "estado": "EXITO",
+  "mensaje": "Sondas recuperadas. Análisis completado.",
+  "identidad":   { "titulo": "...", "descripcion": "..." },
+  "tecnologias": { "servidor": "...", "lenguaje": "...", "frameworkFront": "..." },
+  "metricas":    { "tiempoRespuestaMs": 0, "pesoDocumentoKb": "0.00", "certSslVigente": true }
+}
 ```
-[BÚNKER CENTRAL]: Escuchando comunicaciones en puerto 3000
-```
 
-Dejá esa terminal abierta. El server queda vivo en un bucle de escucha.
-
-### 2. Abrí el frontend
-
-Opción simple: doble clic en `frontend/index.html`.
-
-Opción recomendada (evita rarezas de `file://`): abrir la carpeta en VS Code y
-usar la extensión **Live Server** (botón "Go Live"). Sirve el index en algo como
-`http://127.0.0.1:5500`.
-
-### 3. Probá el flujo
-
-Escribí un dominio en el input → `[INICIAR_ESCANEO]`. El emisor dispara un `fetch`
-POST a `http://localhost:3000/api/escanear`. El servidor responde y el script
-inyecta el mensaje en los paneles. Si el backend está apagado, vas a ver el cartel
-rojo `[FALLO DE CONEXIÓN CON BÚNKER CENTRAL]` (eso es el `catch` haciendo su laburo).
-
-## Requisitos
-
-- Node.js instalado (verificá con `node -v`).
-- Un navegador.
+En caso de error el robot lanza una excepción y el server responde
+`status 500` con `{ "error": "..." }`.
 
 ## Notas para el equipo
 
-- El CORS ya está habilitado en el backend (`app.use(cors())`), así que el navegador
-  puede hablarle al server aunque estén en orígenes distintos.
-- `node_modules` NO se sube al repo (está en `.gitignore`). Cada uno corre
-  `npm install` en su máquina la primera vez.
-- El backend es la base para la Clase 3 (robot con Puppeteer + Cheerio + fs). Ahí
-  es donde se reemplaza la respuesta "de mentira" actual por el escaneo real.
+- `node_modules`, `historial.log` y `capturas/` NO se suben (están en `.gitignore`).
+  Cada uno corre `npm install` en su máquina.
+- El escaneo visita sitios reales: necesita internet y algunos sitios pueden tardar
+  o bloquear navegadores headless (el server lo maneja con error 500, no se cae).
+- **Panel 3 [ENLACES]** queda reservado para la etapa siguiente (extraer y listar los
+  `<a href>` del sitio). Hoy el robot todavía no los extrae.
 
 ## Reparto sugerido
 
-- **Backend (server.js):** lógica de `/api/escanear`, integración del robot, persistencia.
-- **Frontend (script.js / index.html / style.css):** captura del DOM, inyección de
-  resultados en los 4 paneles, mejoras visuales sobre el MVP verde fósforo.
+- **Backend:** `server.js` y `robot.js` (extracción, métricas, persistencia, futura
+  extracción de enlaces y screenshots).
+- **Frontend:** render de los paneles, estilos, y el futuro Panel 3 de enlaces.

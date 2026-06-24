@@ -1,35 +1,53 @@
-/* ============================================================
-   TARGET ANALYZER - EL RECEPTOR (Backend)
-   Se ejecuta en Node.js, desde la terminal: node server.js
-   Queda escuchando en el puerto 3000 esperando al Emisor.
-   ============================================================ */
-
-/* 1. IMPORTACIÓN DE MÓDULOS */
+// server.js  (Receptor v2.3)
+// Importamos el framework principal para levantar la arquitectura del servidor local
 const express = require('express');
+// Importamos el middleware para gestionar los permisos cruzados de seguridad del navegador
 const cors = require('cors');
+// Importamos el módulo nativo para operar lectura y escritura sobre el disco duro
+const fs = require('fs');
+// Importamos la lógica de extracción aislada en el archivo del robot
+const ejecutarExtraccion = require('./robot');
 
-/* 2. INICIALIZACIÓN DEL MOTOR */
+// Inicializamos la aplicación instanciando el motor de Express
 const app = express();
+// Definimos el puerto de escucha por el cual ingresan las peticiones del frontend
 const PUERTO = 3000;
 
-/* 3. CONFIGURACIÓN DE ADUANA (Middlewares) */
-app.use(cors());          // Permite que el navegador (otro origen) nos hable
-app.use(express.json());  // Traduce el texto plano JSON a un objeto usable (req.body)
+// Acoplamos los middlewares: habilitar conexiones externas y decodificar paquetes JSON
+app.use(cors());
+app.use(express.json());
 
-/* 4. LA RUTA TÁCTICA (El receptor) */
-app.post('/api/escanear', (req, res) => {
+// Ruta de entrada para la petición de escaneo (POST para ocultar parámetros)
+app.post('/api/escanear', async (req, res) => {
+    // Capturamos la dirección objetivo que viaja en el cuerpo de la petición
     const urlRecibida = req.body.url;
-    console.log(`[ALERTA]: Objetivo recibido en coordenadas: ${urlRecibida}`);
+    // Alerta inicial en la consola del sistema para control operativo
+    console.log(`[ALERTA]: Iniciando escaneo en coordenadas: ${urlRecibida}`);
+    try {
+        // Delegamos el procesamiento bloqueante al robot y esperamos la respuesta
+        const datosDelRobot = await ejecutarExtraccion(urlRecibida);
 
-    /* 5. EL RETORNO AL FRONTEND */
-    res.json({
-        estado: 'EXITO',
-        mensaje: '[ENLACE ESTABLECIDO]: Servidor a la espera del Robot.',
-        objetivo: urlRecibida
-    });
+        // Armamos la línea de texto plano con los datos vitales para el archivo de registro
+        const lineaLog = `[${new Date().toISOString()}] OBJETIVO: ${urlRecibida} | TÍTULO: ${datosDelRobot.identidad.titulo} | LATENCIA: ${datosDelRobot.metricas.tiempoRespuestaMs}ms | PESO: ${datosDelRobot.metricas.pesoDocumentoKb}KB\n`;
+        // Escritura sincrónica: inyectamos la nueva línea al final del historial local
+        fs.appendFileSync('historial.log', lineaLog, 'utf8');
+
+        // Construimos la respuesta exitosa y retornamos el paquete JSON consolidado
+        res.json({
+            estado: 'EXITO',
+            mensaje: 'Sondas recuperadas. Análisis completado.',
+            identidad: datosDelRobot.identidad,
+            tecnologias: datosDelRobot.tecnologias,
+            metricas: datosDelRobot.metricas
+        });
+    } catch (error) {
+        // Interceptamos cualquier ruptura, la logueamos y devolvemos error 500
+        console.error(error);
+        res.status(500).json({ error: error.message });
+    }
 });
 
-/* 6. ENCENDIDO DEL SERVIDOR */
+// Ponemos el servidor a la escucha en el puerto designado
 app.listen(PUERTO, () => {
     console.log(`[BÚNKER CENTRAL]: Escuchando comunicaciones en puerto ${PUERTO}`);
 });
