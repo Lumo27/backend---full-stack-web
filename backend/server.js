@@ -24,14 +24,23 @@ app.post('/api/escanear', async (req, res) => {
     // Alerta inicial en la consola del sistema para control operativo
     console.log(`[ALERTA]: Iniciando escaneo en coordenadas: ${urlRecibida}`);
     try {
+        // Notificamos el inicio de la comunicacion entre el servidor receptor y el robot extractor 
+        console.log('[ROBOT]: Enviando URL al módulo de extracción');
+        
         // Delegamos el procesamiento bloqueante al robot y esperamos la respuesta
         const datosDelRobot = await ejecutarExtraccion(urlRecibida);
 
+        // Confirmamos que el robot devolvio información sin interrupciones al servidor
+        console.log('[ROBOT]: Extracción completada sin interrupciones');
+        
         // Armamos la línea de texto plano con los datos vitales para el archivo de registro
         const lineaLog = `[${new Date().toISOString()}] OBJETIVO: ${urlRecibida} | TÍTULO: ${datosDelRobot.identidad.titulo} | LATENCIA: ${datosDelRobot.metricas.tiempoRespuestaMs}ms | PESO: ${datosDelRobot.metricas.pesoDocumentoKb}KB\n`;
         // Escritura sincrónica: inyectamos la nueva línea al final del historial local
         fs.appendFileSync('historial.log', lineaLog, 'utf8');
 
+        // Registramos la devolución del paquete JSON consolidando hacia la interfaz cliente, el fronted
+        console.log('[BACKEND]: Enviando respuesta al frontend'];
+        
         // Construimos la respuesta exitosa y retornamos el paquete JSON consolidado
         res.json({
             estado: 'EXITO',
@@ -41,6 +50,9 @@ app.post('/api/escanear', async (req, res) => {
             metricas: datosDelRobot.metricas
         });
     } catch (error) {
+        // Registramos la interrupción del flujo para facilitar el diagnostico posterior
+        console.log('[ROBOT]: Error durante la extracción de datos'];
+        
         // Interceptamos cualquier ruptura, la logueamos y devolvemos error 500
         console.error(error);
         res.status(500).json({ error: error.message });
