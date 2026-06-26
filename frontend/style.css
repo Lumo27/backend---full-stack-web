@@ -105,6 +105,22 @@ body {
 .contenido-panel {
     line-height: 1.5;
     flex-grow: 1;
+    /* Escudo universal: ningún contenido (texto, listas, imágenes) se sale del panel.
+       Si sobra, aparece scroll interno en vez de desbordar la grilla. */
+    min-height: 0;
+    overflow-y: auto;
+    overflow-x: hidden;
+    word-break: break-word;
+}
+
+/* La captura del Panel 1: nunca más ancha que el panel y con alto tope.
+   object-fit: cover + position top muestra la parte de arriba del sitio. */
+.contenido-panel img {
+    width: 100%;
+    max-height: 220px;
+    object-fit: cover;
+    object-position: top;
+    display: block;
 }
 
 /* Escudo protector del Panel 3: evita que cientos de enlaces rompan el diseño */

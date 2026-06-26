@@ -1,53 +1,143 @@
-// server.js  (Receptor v2.3)
-// Importamos el framework principal para levantar la arquitectura del servidor local
+// server.js  (Subproyecto 2 · EL RECEPTOR / JEFE DE OFICINA)
+// No escanea nada él mismo: recibe el pedido del frontend, valida, delega en el
+// robot, deja registro y devuelve la respuesta. Coordina, no hace el trabajo pesado.
+
+// T16: cargamos las variables de entorno desde .env ANTES que nada,
+// así robot.js y este archivo ya las tienen disponibles en process.env.
+require('dotenv').config();
+
 const express = require('express');
-// Importamos el middleware para gestionar los permisos cruzados de seguridad del navegador
 const cors = require('cors');
-// Importamos el módulo nativo para operar lectura y escritura sobre el disco duro
 const fs = require('fs');
-// Importamos la lógica de extracción aislada en el archivo del robot
-const ejecutarExtraccion = require('./robot');
+const path = require('path');
+const registrar = require('./logger'); // Contrato N°2 (T1)
 
-// Inicializamos la aplicación instanciando el motor de Express
+// T4 · Caso límite del PDF: ¿y si robot.js falla al cargarse o no existe?
+// Lo envolvemos en try/catch para que el server no muera al arrancar.
+let ejecutarExtraccion;
+try {
+    ejecutarExtraccion = require('./robot');
+} catch (error) {
+    registrar('ERROR', 'SISTEMA', 'No se pudo cargar el robot: ' + error.message);
+    // Reemplazo de emergencia: si llega un escaneo, responde error controlado.
+    ejecutarExtraccion = async () => { throw new Error('Robot no disponible en el búnker.'); };
+}
+
 const app = express();
-// Definimos el puerto de escucha por el cual ingresan las peticiones del frontend
-const PUERTO = 3000;
+const PUERTO = process.env.PUERTO || 3000; // T16: puerto configurable
 
-// Acoplamos los middlewares: habilitar conexiones externas y decodificar paquetes JSON
 app.use(cors());
 app.use(express.json());
 
-// Ruta de entrada para la petición de escaneo (POST para ocultar parámetros)
+// T6 · Servimos la carpeta de capturas como estática y de solo lectura,
+// para que el frontend pueda pedir las imágenes por URL (/capturas/archivo.png).
+app.use('/capturas', express.static(path.join(__dirname, 'capturas')));
+
+// =====================================================================
+// RUTA PRINCIPAL: recibe la URL y dispara el escaneo.
+// =====================================================================
 app.post('/api/escanear', async (req, res) => {
-    // Capturamos la dirección objetivo que viaja en el cuerpo de la petición
-    const urlRecibida = req.body.url;
-    // Alerta inicial en la consola del sistema para control operativo
-    console.log(`[ALERTA]: Iniciando escaneo en coordenadas: ${urlRecibida}`);
+    registrar('INFO', 'PETICION', 'Petición de escaneo entrante.'); // T2
+
+    // T9 · Validamos y normalizamos la URL en el backend (no confiamos en el front).
+    const urlObjetivo = normalizarUrl(req.body.url);
+    if (!urlObjetivo) {
+        registrar('ERROR', 'PETICION', `URL inválida rechazada: ${req.body.url}`); // T4
+        return res.status(400).json({ error: 'URL inválida. Verificá el formato del objetivo.' });
+    }
+    registrar('INFO', 'PROCESO', `Objetivo recibido: ${urlObjetivo}`); // T2
+
     try {
-        // Delegamos el procesamiento bloqueante al robot y esperamos la respuesta
-        const datosDelRobot = await ejecutarExtraccion(urlRecibida);
+        registrar('INFO', 'ROBOT', 'Enviando orden al robot...'); // T3
+        const datosDelRobot = await ejecutarExtraccion(urlObjetivo);
+        registrar('SUCCESS', 'ROBOT', 'El Robot escaneó la URL exitosamente'); // T3
 
-        // Armamos la línea de texto plano con los datos vitales para el archivo de registro
-        const lineaLog = `[${new Date().toISOString()}] OBJETIVO: ${urlRecibida} | TÍTULO: ${datosDelRobot.identidad.titulo} | LATENCIA: ${datosDelRobot.metricas.tiempoRespuestaMs}ms | PESO: ${datosDelRobot.metricas.pesoDocumentoKb}KB\n`;
-        // Escritura sincrónica: inyectamos la nueva línea al final del historial local
-        fs.appendFileSync('historial.log', lineaLog, 'utf8');
+        // T15 · Guardamos un resumen del escaneo en historial.json (no bloqueante).
+        guardarEnHistorial({
+            fecha: new Date().toISOString(),
+            url: urlObjetivo,
+            titulo: datosDelRobot.identidad.titulo,
+            statusHttp: datosDelRobot.metricas.statusHttp
+        });
 
-        // Construimos la respuesta exitosa y retornamos el paquete JSON consolidado
+        // Construimos la respuesta. AGREGAMOS 'enlaces' y 'rutasInternas' sin tocar
+        // identidad/tecnologias/metricas (respetamos el contrato existente).
+        registrar('INFO', 'RETORNO', 'Despachando JSON. Estado: 200'); // T3
         res.json({
             estado: 'EXITO',
             mensaje: 'Sondas recuperadas. Análisis completado.',
             identidad: datosDelRobot.identidad,
             tecnologias: datosDelRobot.tecnologias,
-            metricas: datosDelRobot.metricas
+            enlaces: datosDelRobot.enlaces,           // T8
+            metricas: datosDelRobot.metricas,
+            rutasInternas: datosDelRobot.rutasInternas // T14
         });
     } catch (error) {
-        // Interceptamos cualquier ruptura, la logueamos y devolvemos error 500
-        console.error(error);
+        registrar('ERROR', 'ROBOT', error.message); // T4: errores van al archivo, no solo a consola
         res.status(500).json({ error: error.message });
     }
 });
 
-// Ponemos el servidor a la escucha en el puerto designado
+// =====================================================================
+// T15 · Endpoint para consultar el histórico de escaneos.
+// =====================================================================
+app.get('/api/historial', (req, res) => {
+    fs.readFile(path.join(__dirname, 'historial.json'), 'utf8', (error, datos) => {
+        if (error) return res.json([]); // todavía no hay historial
+        try {
+            res.json(JSON.parse(datos));
+        } catch {
+            res.json([]); // archivo corrupto: devolvemos lista vacía
+        }
+    });
+});
+
+// =====================================================================
+// AYUDANTES
+// =====================================================================
+
+// T9 · Devuelve la URL normalizada (con http/https) o null si es inválida.
+function normalizarUrl(entrada) {
+    if (!entrada || typeof entrada !== 'string') return null;
+    let texto = entrada.trim();
+    if (!texto) return null;
+
+    // Si YA trae un protocolo (algo://), no lo tocamos: lo validamos abajo.
+    // Si NO trae protocolo, le anteponemos https://
+    const yaTieneProtocolo = /^[a-z][a-z0-9+.-]*:\/\//i.test(texto);
+    if (!yaTieneProtocolo) {
+        texto = 'https://' + texto;
+    }
+
+    try {
+        const u = new URL(texto);
+        // Solo aceptamos http/https (rechazamos ftp://, etc.).
+        if (u.protocol !== 'http:' && u.protocol !== 'https:') return null;
+        // Exigimos un dominio con punto (ej: "sitio.com") para descartar basura tipo "pepe".
+        if (!u.hostname.includes('.') && u.hostname !== 'localhost') return null;
+        return u.href;
+    } catch {
+        return null;
+    }
+}
+
+// T15 · Agrega un registro al principio de historial.json (últimos 50). Asíncrono.
+function guardarEnHistorial(registro) {
+    const ruta = path.join(__dirname, 'historial.json');
+    fs.readFile(ruta, 'utf8', (error, datos) => {
+        let historial = [];
+        if (!error && datos) {
+            try { historial = JSON.parse(datos); } catch { historial = []; }
+        }
+        historial.unshift(registro);      // el más nuevo primero
+        historial = historial.slice(0, 50); // conservamos los últimos 50
+        fs.writeFile(ruta, JSON.stringify(historial, null, 2), () => {});
+    });
+}
+
+// Ponemos el servidor a escuchar.
 app.listen(PUERTO, () => {
+    registrar('INFO', 'SISTEMA', 'Búnker central activo.');              // T2
+    registrar('INFO', 'SISTEMA', `Escuchando en puerto ${PUERTO}`);      // T2
     console.log(`[BÚNKER CENTRAL]: Escuchando comunicaciones en puerto ${PUERTO}`);
 });

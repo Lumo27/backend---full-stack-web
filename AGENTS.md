@@ -49,20 +49,32 @@ target-analyzer/
 
 Request: `POST http://localhost:3000/api/escanear`, body `{ "url": "<url>" }`.
 
-Response OK:
+Response OK (contrato final, tras las 16 tareas):
 ```json
 {
   "estado": "EXITO",
   "mensaje": "Sondas recuperadas. Análisis completado.",
-  "identidad":   { "titulo": "...", "descripcion": "..." },
-  "tecnologias": { "servidor": "...", "lenguaje": "...", "frameworkFront": "..." },
-  "metricas":    { "tiempoRespuestaMs": 0, "pesoDocumentoKb": "0.00", "certSslVigente": true }
+  "identidad":   { "titulo": "...", "descripcion": "...", "captura": "/capturas/objetivo_....png" },
+  "tecnologias": { "servidor": "...", "lenguaje": "...", "frameworkFront": "...", "extras": ["jQuery"] },
+  "enlaces":     { "total": 42, "internos": 30, "externos": 12,
+                   "lista": [ { "url": "https://...", "texto": "...", "tipo": "interno" } ] },
+  "metricas":    { "tiempoRespuestaMs": 0, "pesoDocumentoKb": "0.00", "certSslVigente": true,
+                   "statusHttp": 200, "conteos": { "imagenes": 12, "scripts": 8, "enlaces": 42 },
+                   "protocoloTls": "TLS 1.3" },
+  "rutasInternas": [ { "url": "https://...", "titulo": "...", "statusHttp": 200 } ]
 }
 ```
 Response error: `status 500` con `{ "error": "<mensaje>" }`.
+URL inválida: `status 400` con `{ "error": "URL inválida..." }`.
 
 El frontend mapea: `identidad` → Panel 1 (#panel-vista), `tecnologias` → Panel 2
-(#panel-tech), `metricas` → Panel 4 (#panel-metricas).
+(#panel-tech), `enlaces` → Panel 3 (#panel-enlaces), `metricas` → Panel 4 (#panel-metricas).
+
+Otros endpoints:
+- `GET /api/historial` → últimos escaneos guardados en `historial.json`.
+- `GET /capturas/<archivo>.png` → sirve las capturas (estático, solo lectura).
+
+Config por entorno (`.env` en `backend/`): `PUERTO`, `TIMEOUT_NAVEGACION_MS`, `PROFUNDIDAD_MAX`.
 
 ## 7. Cómo trabaja robot.js hoy
 
