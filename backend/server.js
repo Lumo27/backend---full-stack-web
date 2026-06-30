@@ -49,7 +49,8 @@ app.post('/api/escanear', async (req, res) => {
             mensaje: 'Sondas recuperadas. Análisis completado.',
             identidad: datosDelRobot.identidad,
             tecnologias: datosDelRobot.tecnologias,
-            metricas: datosDelRobot.metricas
+            metricas: datosDelRobot.metricas,
+            enlaces: datosDelRobot.enlaces
         });
     } catch (error) {
         // Registramos la interrupción del flujo para facilitar el diagnostico posterior

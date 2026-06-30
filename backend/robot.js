@@ -54,6 +54,57 @@ async function ejecutarExtraccion(urlObjetivo) {
         // Aislamos el atributo content del metadato de descripción
         const descripcionPagina = $('meta[name="description"]').attr('content') || 'Sin descripción';
 
+
+        // PANEL 3
+        
+        // Extraemos el dominio base de la URL para identificar el host principal
+        const dominioBase = new URL(urlObjetivo).hostname;
+
+        //Creamos un conjunto para almacenar los enlaces únicos procesados
+        const enlacesProcesados = new Set();
+
+        // Array final para devolver al frontend, que contendrá objetos con la información de cada enlace
+        const enlaces = [];
+
+        $('a[href]').each((index, elemento) => {
+            try {
+                // Leemos el href original
+                const href = ($(elemento).attr('href') || '').trim();
+                if (
+                    !href || 
+                    href.startsWith('#') ||
+                    href.startsWith('mailto:') ||
+                    href.startsWith('tel:') ||
+                    href.startsWith('javascript:')
+                ) {
+                    return; // Ignoramos enlaces vacíos, anclas, correos, teléfonos y scripts
+                }
+                const urlAbsoluta = 
+                    new URL(href, urlObjetivo).href;
+                
+                if (enlacesProcesados.has(urlAbsoluta)) {
+                    return; // Ignoramos enlaces duplicados
+                }
+                enlacesProcesados.add(urlAbsoluta); // Marcamos el enlace como procesado
+                const dominiolink =
+                    new URL(urlAbsoluta).hostname;
+
+                const tipo =
+                    dominiolink === dominioBase ? 'interno' : 'externo';
+                
+                const textoVisible = $(elemento).text().replace(/\s+/g, ' ').trim() || 'Sin texto visible';
+                
+                enlaces.push({
+                    url: urlAbsoluta,
+                    tipo: tipo,
+                    texto: textoVisible
+                });
+            } catch (error) {
+                console.error(`Error al procesar el enlace: ${error.message}`);
+            }
+        });
+
+
         // Detección de framework por la existencia estructural de nodos característicos
         let frameworkFront = 'Desconocido';
         if ($('[data-reactroot], #root').length > 0) frameworkFront = 'React';
@@ -89,9 +140,10 @@ async function ejecutarExtraccion(urlObjetivo) {
                 tiempoRespuestaMs: tiempoRespuestaMs,
                 pesoDocumentoKb: pesoDocumentoKb,
                 certSslVigente: certSslVigente
-            }
+            },
+            enlaces: enlaces
         };
-    } catch (error) {
+    } catch (error) {   
         // Garantizamos que el proceso de Chrome no quede huérfano consumiendo RAM
         if (navegador) {
             await navegador.close();
