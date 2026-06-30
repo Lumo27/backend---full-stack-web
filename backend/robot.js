@@ -4,6 +4,11 @@ const cheerio = require('cheerio');
 // Importamos el motor de automatización para controlar el navegador en segundo plano
 const puppeteer = require('puppeteer');
 
+// Importamos el modulo nativo para crear carpetas y administrar archivos
+const fs = require('fs');
+// Importamos la utilidad para construir rutas compatibles con cualquier sistema operativo
+const path = require('path');
+
 // Definimos la función principal asincrónica que recibe la URL a escanear
 async function ejecutarExtraccion(urlObjetivo) {
     // Inicializamos la variable del navegador fuera del try para poder cerrarla en el catch
@@ -17,6 +22,22 @@ async function ejecutarExtraccion(urlObjetivo) {
         const tiempoInicio = Date.now();
         // Navegamos esperando a que el tráfico de red se estabilice
         const respuestaRed = await pagina.goto(urlObjetivo, { waitUntil: 'networkidle2' });
+        // Definimos la ruta donde se almacenaran las capturas generadas por el robot
+        const carpetaCapturas = path.join(__dirname, 'capturas');
+        // Verificamos si el directorio de capturas existe, si no, lo creamos automaticamente
+        if (!fs.existsSync(carpetaCapturas)) {
+            fs.mkdirSync(carpetaCapturas);
+        } 
+        // Generamos un nombre único utilizando el dominio del sitio y la fecha actual
+        const dominio = new URL(urlObjetivo).hostname.replace(/\./g, '_');
+        const nombreCaptura = `${dominio}_${Date.now()}.png`;
+        // Construimos la ruta completa donde se almacenara la captura
+        const rutaCaptura = path.join(carpetaCapturas, nombreCaptura);
+        // Capturamos una imagen completa del sitio para conservar una evidencia visual del análisis
+        await pagina.screenshot({
+            path: rutaCaptura,
+            fullPage: true
+        });
         // Extraemos la fotografía estática del DOM ya renderizado por el motor V8
         const codigoHtml = await pagina.content();
         // Calculamos el tiempo total del proceso de carga en milisegundos
@@ -55,7 +76,9 @@ async function ejecutarExtraccion(urlObjetivo) {
         return {
             identidad: {
                 titulo: tituloPagina,
-                descripcion: descripcionPagina
+                descripcion: descripcionPagina,
+                // Incorporamos la ruta de la captura para que el frontend pueda visualizarla
+                captura: `/capturas/${nombreCaptura}`
             },
             tecnologias: {
                 servidor: servidor,
