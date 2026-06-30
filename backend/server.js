@@ -39,7 +39,7 @@ app.post('/api/escanear', async (req, res) => {
         fs.appendFileSync('historial.log', lineaLog, 'utf8');
 
         // Registramos la devolución del paquete JSON consolidando hacia la interfaz cliente, el fronted
-        console.log('[BACKEND]: Enviando respuesta al frontend'];
+        console.log('[BACKEND]: Enviando respuesta al frontend');
         
         // Construimos la respuesta exitosa y retornamos el paquete JSON consolidado
         res.json({
@@ -47,11 +47,12 @@ app.post('/api/escanear', async (req, res) => {
             mensaje: 'Sondas recuperadas. Análisis completado.',
             identidad: datosDelRobot.identidad,
             tecnologias: datosDelRobot.tecnologias,
-            metricas: datosDelRobot.metricas
+            metricas: datosDelRobot.metricas,
+            enlaces: datosDelRobot.enlaces
         });
     } catch (error) {
         // Registramos la interrupción del flujo para facilitar el diagnostico posterior
-        console.log('[ROBOT]: Error durante la extracción de datos'];
+        console.log('[ROBOT]: Error durante la extracción de datos');
         
         // Interceptamos cualquier ruptura, la logueamos y devolvemos error 500
         console.error(error);
