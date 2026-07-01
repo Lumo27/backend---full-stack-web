@@ -9,11 +9,33 @@ const ejecutarExtraccion = require('./robot');
 const { registrar } = require('./logger');
 // Importamos el validador/normalizador de URLs (T9)
 const { normalizarYValidar } = require('./validador');
+// Módulos nativos para persistir el historial de escaneos (T15)
+const fs = require('fs').promises;
+const path = require('path');
 
 // Inicializamos la aplicación instanciando el motor de Express
 const app = express();
 // Definimos el puerto de escucha por el cual ingresan las peticiones del frontend
 const PUERTO = 3000;
+
+// T15 · Archivo donde se acumulan los resultados de cada escaneo
+const RUTA_HISTORIAL = path.join(__dirname, 'historial.json');
+
+// Lee el historial del disco; si no existe o está corrupto, devuelve lista vacía
+async function leerHistorial() {
+    try {
+        return JSON.parse(await fs.readFile(RUTA_HISTORIAL, 'utf8'));
+    } catch {
+        return [];
+    }
+}
+
+// Agrega un resultado al historial de forma asíncrona (no bloquea el servidor)
+async function guardarEnHistorial(entrada) {
+    const historial = await leerHistorial();
+    historial.push(entrada);
+    await fs.writeFile(RUTA_HISTORIAL, JSON.stringify(historial, null, 2), 'utf8');
+}
 
 // Acoplamos los middlewares: habilitar conexiones externas y decodificar paquetes JSON
 app.use(cors());
@@ -59,6 +81,19 @@ app.post('/api/escanear', async (req, res) => {
         // T3 · Registramos el despacho del JSON al frontend con su estado HTTP
         registrar('INFO', 'RETORNO', 'Despachando JSON. Estado: 200');
 
+        // T15 · Guardamos un resumen del escaneo en el historial (sin frenar la respuesta si falla)
+        try {
+            await guardarEnHistorial({
+                fecha: new Date().toISOString(),
+                url: urlObjetivo,
+                titulo: datosDelRobot.identidad.titulo,
+                statusHttp: datosDelRobot.metricas.statusHttp,
+                tiempoRespuestaMs: datosDelRobot.metricas.tiempoRespuestaMs
+            });
+        } catch (errorHistorial) {
+            registrar('WARN', 'HISTORIAL', `No se pudo guardar en historial: ${errorHistorial.message}`);
+        }
+
         // Construimos la respuesta exitosa y retornamos el paquete JSON consolidado
         res.json({
             estado: 'EXITO',
@@ -79,6 +114,13 @@ app.post('/api/escanear', async (req, res) => {
         console.error(error);
         res.status(500).json({ error: error.message });
     }
+});
+
+// T15 · Endpoint para consultar los escaneos históricos (más recientes primero)
+app.get('/api/historial', async (req, res) => {
+    registrar('INFO', 'PETICION', 'Consulta de historial en /api/historial');
+    const historial = await leerHistorial();
+    res.json({ estado: 'EXITO', total: historial.length, escaneos: historial.slice().reverse() });
 });
 
 // Ponemos el servidor a la escucha en el puerto designado
