@@ -106,6 +106,31 @@ async function ejecutarExtraccion(urlObjetivo) {
             }
         });
 
+        // 
+        // MAPEO DE RUTAS INTERNAS (Épica F) 
+        //
+        const enlacesinternos = enlaces.filter(enlace => enlace.tipo === 'interno').slice(0, 5); // Limitamos a los primeros 5 enlaces internos
+
+        const rutasInternas = [];
+
+        for (const enlace of enlacesinternos) {
+            const paginaInterna = await navegador.newPage();
+            try {
+                await paginaInterna.goto(enlace.url, { waitUntil: 'networkidle2' });
+                const htmlInterno = await paginaInterna.content();
+                const $$ = cheerio.load(htmlInterno);
+
+                rutasInternas.push({
+                    url: enlace.url,
+                    titulo: $$('title').text().trim() || 'Sin título',
+                    descripcion: $$('meta[name="description"]').attr('content') || 'Sin descripción'
+                });
+            } catch (error) {
+                console.error(`Error al procesar la ruta interna ${enlace.url}: ${error.message}`);
+            } finally {
+                await paginaInterna.close();
+            }
+        }
 
         // Detección de framework por la existencia estructural de nodos característicos
         let frameworkFront = 'Desconocido';
