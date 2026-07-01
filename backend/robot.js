@@ -2,10 +2,9 @@
 // Importamos la librería de parseo rápido para estructurar el HTML estático en memoria
 const cheerio = require('cheerio');
 // Importamos el motor de automatización para controlar el navegador en segundo plano
+const puppeteer = require('puppeteer');
 
-const  puppeteer = require('puppeteer'); 
 // Importamos el modulo nativo para crear carpetas y administrar archivos
-
 const fs = require('fs');
 // Importamos la utilidad para construir rutas compatibles con cualquier sistema operativo
 const path = require('path');
@@ -22,7 +21,17 @@ async function ejecutarExtraccion(urlObjetivo) {
         // Registramos la marca de tiempo inicial para calcular la latencia posterior
         const tiempoInicio = Date.now();
         // Navegamos esperando a que el tráfico de red se estabilice
-        const respuestaRed = await pagina.goto(urlObjetivo, { waitUntil: 'networkidle2' });
+        respuestaRed = await pagina.goto(urlObjetivo, { waitUntil: 'networkidle2' });
+        console.log("Código HTTP:", respuestaRed.status());
+        // Verificamos el código de estado HTTP devuelto por el servidor
+        const codigoEstado = respuestaRed.status();
+
+        if (codigoEstado >= 400 && codigoEstado < 500) {
+            throw new Error(`El sitio respondió con un error ${codigoEstado}.`);
+        }
+        if (codigoEstado >= 500) {
+            throw new Error(`El servidor respondió con un error ${codigoEstado}.`);
+        }
         // Definimos la ruta donde se almacenaran las capturas generadas por el robot
         const carpetaCapturas = path.join(__dirname, 'capturas');
         // Verificamos si el directorio de capturas existe, si no, lo creamos automaticamente
@@ -38,8 +47,7 @@ async function ejecutarExtraccion(urlObjetivo) {
         await pagina.screenshot({
             path: rutaCaptura,
             fullPage: true
-        });            
-        
+        });
         // Extraemos la fotografía estática del DOM ya renderizado por el motor V8
         const codigoHtml = await pagina.content();
         // Calculamos el tiempo total del proceso de carga en milisegundos
@@ -153,13 +161,25 @@ async function ejecutarExtraccion(urlObjetivo) {
                 externos: enlaces.filter(enlace => enlace.tipo === 'externo').length,
                 lista: enlaces
             }
-        };    } catch (error) {   
+        };    } catch (error) {  
+        // Inicializamos el mensaje genérico que se devolverá si no se identifica un error específico
+        let mensajeError = 'Falla en la intercepción de datos. Objetivo inalcanzable.';
+        
+        // Verificamos si el dominio ingresado no pudo resolverse mediante DNS
+        if (error.message.includes('ERR_NAME_NOT_RESOLVED')) {
+            mensajeError = 'El dominio ingresado no existe o no pudo resolverse.';
+        }
+        // Verificamos si el sitio tardó demasiado tiempo en responder
+        else if (error.message.toLowerCase().includes('timeout')) {
+            mensajeError = 'El sitio tardó demasiado en responder. Inténtelo nuevamente más tarde.';
+        }
         // Garantizamos que el proceso de Chrome no quede huérfano consumiendo RAM
         if (navegador) {
             await navegador.close();
         }
-        // Disparamos la alerta de fallo hacia el servidor receptor deteniendo la ejecución
-        throw new Error('Falla en la intercepción de datos. Objetivo inalcanzable.');
+        // Devolvemos el mensaje correspondiente según el tipo de error detectado
+        // Aquí podra registrarse el error mediante logger.js cuando esté implementado
+        throw new Error(mensajeError);
     }
 }
 
