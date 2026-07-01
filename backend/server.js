@@ -7,6 +7,8 @@ const cors = require('cors');
 const ejecutarExtraccion = require('./robot');
 // Importamos el registrador central de logs no bloqueante (Contrato N°2 · T1)
 const { registrar } = require('./logger');
+// Importamos el validador/normalizador de URLs (T9)
+const { normalizarYValidar } = require('./validador');
 
 // Inicializamos la aplicación instanciando el motor de Express
 const app = express();
@@ -28,6 +30,16 @@ app.post('/api/escanear', async (req, res) => {
     // T2 · Dejamos constancia en el archivo de la petición entrante y su objetivo
     registrar('INFO', 'PETICION', 'Petición de escaneo recibida en /api/escanear');
     registrar('INFO', 'PROCESO', `Objetivo recibido: ${urlRecibida}`);
+
+    // T9 · Validamos y normalizamos la URL ANTES de tocar al robot
+    let urlObjetivo;
+    try {
+        urlObjetivo = normalizarYValidar(urlRecibida);
+    } catch (errorValidacion) {
+        registrar('WARN', 'VALIDACION', `URL rechazada: ${errorValidacion.message}`);
+        return res.status(400).json({ estado: 'ERROR', error: errorValidacion.message });
+    }
+
     try {
         // Notificamos el inicio de la comunicacion entre el servidor receptor y el robot extractor
         console.log('[ROBOT]: Enviando URL al módulo de extracción');
@@ -35,7 +47,7 @@ app.post('/api/escanear', async (req, res) => {
         registrar('INFO', 'ROBOT', 'Enviando orden al robot...');
 
         // Delegamos el procesamiento bloqueante al robot y esperamos la respuesta
-        const datosDelRobot = await ejecutarExtraccion(urlRecibida);
+        const datosDelRobot = await ejecutarExtraccion(urlObjetivo);
 
         // Confirmamos que el robot devolvio información sin interrupciones al servidor
         console.log('[ROBOT]: Extracción completada sin interrupciones');
