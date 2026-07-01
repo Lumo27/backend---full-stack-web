@@ -1,4 +1,6 @@
 // server.js  (Receptor v2.3)
+// T16 · Cargamos las variables de entorno desde .env (si dotenv no está, se usan los valores por defecto)
+try { require('dotenv').config(); } catch { /* dotenv opcional */ }
 // Importamos el framework principal para levantar la arquitectura del servidor local
 const express = require('express');
 // Importamos el middleware para gestionar los permisos cruzados de seguridad del navegador
@@ -15,8 +17,8 @@ const path = require('path');
 
 // Inicializamos la aplicación instanciando el motor de Express
 const app = express();
-// Definimos el puerto de escucha por el cual ingresan las peticiones del frontend
-const PUERTO = 3000;
+// T16 · Puerto configurable desde .env (con 3000 como valor por defecto)
+const PUERTO = Number(process.env.PUERTO) || 3000;
 
 // T15 · Archivo donde se acumulan los resultados de cada escaneo
 const RUTA_HISTORIAL = path.join(__dirname, 'historial.json');
