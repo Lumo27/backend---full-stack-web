@@ -16,7 +16,14 @@ async function ejecutarExtraccion(urlObjetivo) {
         // Registramos la marca de tiempo inicial para calcular la latencia posterior
         const tiempoInicio = Date.now();
         // Navegamos esperando a que el tráfico de red se estabilice
-        const respuestaRed = await pagina.goto(urlObjetivo, { waitUntil: 'networkidle2' });
+        const respuestaRed = await pagina.goto(urlObjetivo, { waitUntil: 'networkidle2', timeout: 30000 });
+        
+        // Verificamos si la respuesta devolvió un código de estado HTTP (4xx/5xx)
+        if (respuestaRed && respuestaRed.status() >= 400) {
+            await navegador.close();
+            throw new Error(`ERROR HTTP ${respuestaRed.status()}: Servidor respondió con error.`);
+        }
+        
         // Extraemos la fotografía estática del DOM ya renderizado por el motor V8
         const codigoHtml = await pagina.content();
         // Calculamos el tiempo total del proceso de carga en milisegundos
@@ -73,8 +80,28 @@ async function ejecutarExtraccion(urlObjetivo) {
         if (navegador) {
             await navegador.close();
         }
+        
+        // Distinguimos tipos de error para devolver mensajes específicos
+        let mensajeError = 'Falla en la intercepción de datos. Objetivo inalcanzable.';
+        
+        if (error.message.includes('timeout')) {
+            // El timeout de Puppeteer (waitUntil) se excedió
+            mensajeError = '[TIMEOUT]: La página tardó demasiado en cargar (>30s). Servidor no responde.';
+        } else if (error.message.includes('ERR_NAME_NOT_RESOLVED') || 
+                   error.message.includes('getaddrinfo') ||
+                   error.message.includes('ENOTFOUND')) {
+            // Error de DNS / dominio no existe
+            mensajeError = '[DNS]: Dominio inválido o no existe. Verifica la dirección.';
+        } else if (error.message.includes('HTTP')) {
+            // Error HTTP 4xx/5xx ya viene en el mensaje
+            mensajeError = error.message;
+        } else if (error.message.includes('ECONNREFUSED')) {
+            // Conexión rechazada
+            mensajeError = '[CONEXIÓN]: El servidor rechazó la conexión. Verifica que la URL es válida.';
+        }
+        
         // Disparamos la alerta de fallo hacia el servidor receptor deteniendo la ejecución
-        throw new Error('Falla en la intercepción de datos. Objetivo inalcanzable.');
+        throw new Error(mensajeError);
     }
 }
 

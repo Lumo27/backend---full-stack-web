@@ -3,10 +3,18 @@
 const express = require('express');
 // Importamos el middleware para gestionar los permisos cruzados de seguridad del navegador
 const cors = require('cors');
-// Importamos el módulo nativo para operar lectura y escritura sobre el disco duro
-const fs = require('fs');
+// Importamos el logger asíncrono para registrar eventos del servidor
+const registrar = require('./logger');
 // Importamos la lógica de extracción aislada en el archivo del robot
-const ejecutarExtraccion = require('./robot');
+let ejecutarExtraccion;
+try {
+    ejecutarExtraccion = require('./robot');
+} catch (error) {
+    registrar('ERROR', 'ROBOT', 'No se pudo cargar el robot: ' + error.message);
+    ejecutarExtraccion = async () => {
+        throw new Error('Robot no disponible. Comprueba el módulo ./robot.');
+    };
+}
 
 // Inicializamos la aplicación instanciando el motor de Express
 const app = express();
@@ -19,27 +27,27 @@ app.use(express.json());
 
 // Ruta de entrada para la petición de escaneo (POST para ocultar parámetros)
 app.post('/api/escanear', async (req, res) => {
+    registrar('INFO', 'PETICION', 'Nueva petición POST recibida en /api/escanear');
     // Capturamos la dirección objetivo que viaja en el cuerpo de la petición
     const urlRecibida = req.body.url;
+    registrar('INFO', 'PROCESO', 'Objetivo recibido: ' + urlRecibida);
     // Alerta inicial en la consola del sistema para control operativo
     console.log(`[ALERTA]: Iniciando escaneo en coordenadas: ${urlRecibida}`);
     try {
         // Notificamos el inicio de la comunicacion entre el servidor receptor y el robot extractor 
         console.log('[ROBOT]: Enviando URL al módulo de extracción');
+        registrar('INFO', 'ROBOT', 'Enviando orden al robot...');
         
         // Delegamos el procesamiento bloqueante al robot y esperamos la respuesta
         const datosDelRobot = await ejecutarExtraccion(urlRecibida);
 
         // Confirmamos que el robot devolvio información sin interrupciones al servidor
         console.log('[ROBOT]: Extracción completada sin interrupciones');
+        registrar('SUCCESS', 'ROBOT', 'El Robot escaneó la URL exitosamente');
         
-        // Armamos la línea de texto plano con los datos vitales para el archivo de registro
-        const lineaLog = `[${new Date().toISOString()}] OBJETIVO: ${urlRecibida} | TÍTULO: ${datosDelRobot.identidad.titulo} | LATENCIA: ${datosDelRobot.metricas.tiempoRespuestaMs}ms | PESO: ${datosDelRobot.metricas.pesoDocumentoKb}KB\n`;
-        // Escritura sincrónica: inyectamos la nueva línea al final del historial local
-        fs.appendFileSync('historial.log', lineaLog, 'utf8');
-
         // Registramos la devolución del paquete JSON consolidando hacia la interfaz cliente, el fronted
-        console.log('[BACKEND]: Enviando respuesta al frontend'];
+        console.log('[BACKEND]: Enviando respuesta al frontend');
+        registrar('INFO', 'RETORNO', 'Despachando JSON. Estado: 200');
         
         // Construimos la respuesta exitosa y retornamos el paquete JSON consolidado
         res.json({
@@ -50,8 +58,16 @@ app.post('/api/escanear', async (req, res) => {
             metricas: datosDelRobot.metricas
         });
     } catch (error) {
-        // Registramos la interrupción del flujo para facilitar el diagnostico posterior
-        console.log('[ROBOT]: Error durante la extracción de datos'];
+        // Registramos la interrupción del flujo y el tipo específico de error para diagnóstico
+        console.log('[ROBOT]: Error durante la extracción de datos');
+        registrar('ERROR', 'ROBOT', error.message);
+        
+        // Determinamos el tipo de error para logueo específico
+        let tipoError = 'DESCONOCIDO';
+        if (error.message.includes('[TIMEOUT]')) tipoError = 'TIMEOUT';
+        else if (error.message.includes('[DNS]')) tipoError = 'DNS';
+        else if (error.message.includes('[HTTP')) tipoError = 'HTTP';
+        else if (error.message.includes('[CONEXIÓN]')) tipoError = 'CONEXIÓN_RECHAZADA';
         
         // Interceptamos cualquier ruptura, la logueamos y devolvemos error 500
         console.error(error);
@@ -62,4 +78,5 @@ app.post('/api/escanear', async (req, res) => {
 // Ponemos el servidor a la escucha en el puerto designado
 app.listen(PUERTO, () => {
     console.log(`[BÚNKER CENTRAL]: Escuchando comunicaciones en puerto ${PUERTO}`);
+    registrar('INFO', 'SISTEMA', 'Búnker activo. Escuchando en puerto 3000');
 });
