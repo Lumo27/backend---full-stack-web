@@ -10,6 +10,9 @@ const fs = require('fs');
 // Importamos la utilidad para construir rutas compatibles con cualquier sistema operativo
 const path = require('path');
 
+// Tiempo máximo (ms) que esperamos a que un sitio cargue antes de abortar (T11)
+const TIEMPO_MAXIMO_MS = 30000;
+
 // Definimos la función principal asincrónica que recibe la URL a escanear
 async function ejecutarExtraccion(urlObjetivo) {
     // Inicializamos la variable del navegador fuera del try para poder cerrarla en el catch
@@ -21,8 +24,8 @@ async function ejecutarExtraccion(urlObjetivo) {
         const pagina = await navegador.newPage();
         // Registramos la marca de tiempo inicial para calcular la latencia posterior
         const tiempoInicio = Date.now();
-        // Navegamos esperando a que el tráfico de red se estabilice
-        const respuestaRed = await pagina.goto(urlObjetivo, { waitUntil: 'networkidle2' });
+        // Navegamos esperando a que el tráfico de red se estabilice, con corte por timeout (T11)
+        const respuestaRed = await pagina.goto(urlObjetivo, { waitUntil: 'networkidle2', timeout: TIEMPO_MAXIMO_MS });
         // Definimos la ruta donde se almacenaran las capturas generadas por el robot
         const carpetaCapturas = path.join(__dirname, 'capturas');
         // Verificamos si el directorio de capturas existe, si no, lo creamos automaticamente
@@ -147,9 +150,6 @@ async function ejecutarExtraccion(urlObjetivo) {
         // Interceptamos las cabeceras de red para identificar el servidor que aloja el sitio
         const servidor = respuestaRed.headers()['server'] || 'Oculto';
 
-        // Apagamos la instancia de Chrome para liberar la memoria RAM del equipo
-        await navegador.close();
-
         // Ensamblamos y retornamos el objeto JSON con las tres capas de datos tácticos
         return {
             identidad: {
@@ -185,13 +185,15 @@ async function ejecutarExtraccion(urlObjetivo) {
                 total: rutasInternas.length,
                 lista: rutasInternas
             }
-        };    } catch (error) {
-        // Garantizamos que el proceso de Chrome no quede huérfano consumiendo RAM
+        };
+    } catch (error) {
+        // Disparamos la alerta de fallo hacia el servidor receptor deteniendo la ejecución
+        throw new Error('Falla en la intercepción de datos. Objetivo inalcanzable.');
+    } finally {
+        // T11 · Cerramos Chrome SIEMPRE (éxito o error) para no dejar procesos zombies
         if (navegador) {
             await navegador.close();
         }
-        // Disparamos la alerta de fallo hacia el servidor receptor deteniendo la ejecución
-        throw new Error('Falla en la intercepción de datos. Objetivo inalcanzable.');
     }
 }
 
