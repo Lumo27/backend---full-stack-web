@@ -3,6 +3,7 @@ node_modules/
 
 # Artefactos generados por el robot en runtime
 historial.log
+historial.json
 registro_bunker.txt
 capturas/
 
