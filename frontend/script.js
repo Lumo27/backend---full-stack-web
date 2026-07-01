@@ -9,6 +9,11 @@ const panelMetricas = document.querySelector('#panel-metricas .contenido-panel')
 
 let controladorPeticion;
 
+// Función helper para crear spinner
+function crearSpinner(texto = '[PROCESANDO...]') {
+    return `<div class="spinner-container"><div class="spinner"></div><div class="spinner-texto">${texto}</div></div>`;
+}
+
 botonEscaneo.addEventListener('click', iniciarOperacion);
 
 botonAbortar.addEventListener('click', () => {
@@ -47,10 +52,10 @@ async function iniciarOperacion() {
     }
 
     // Feedback visual de carga
-    panelVista.innerHTML = `<span style="color: var(--color-terminal)">[CONECTANDO SONDAS...]</span>`;
-    panelTech.innerHTML = '';
-    panelEnlaces.innerHTML = '';
-    panelMetricas.innerHTML = '';
+    panelVista.innerHTML = crearSpinner('[ESCANEANDO VISTA...]');
+    panelTech.innerHTML = crearSpinner('[DETECTANDO TECNOLOGÍA...]');
+    panelEnlaces.innerHTML = crearSpinner('[EXTRAYENDO ENLACES...]');
+    panelMetricas.innerHTML = crearSpinner('[CALCULANDO MÉTRICAS...]');
 
     controladorPeticion = new AbortController();
 
