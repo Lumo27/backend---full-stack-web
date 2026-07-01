@@ -23,6 +23,7 @@ const PROFUNDIDAD_MAX = Number(process.env.PROFUNDIDAD_MAX) || 3;
 // la página principal profundiza; las internas NO vuelven a profundizar.
 // =====================================================================
 async function ejecutarExtraccion(urlObjetivo, profundizar = true) {
+    console.log(`🤖 Iniciando análisis: ${urlObjetivo}`);
     let navegador;
     try {
         // Lanzamos Chrome headless (sin ventana) para máximo rendimiento.
@@ -92,6 +93,7 @@ async function ejecutarExtraccion(urlObjetivo, profundizar = true) {
         }
 
         // Ensamblamos el objeto de datos (Contrato N°1).
+        console.log(`✅ Análisis terminado: ${urlObjetivo}`);
         return {
             identidad: {
                 titulo: tituloPagina,
@@ -117,6 +119,7 @@ async function ejecutarExtraccion(urlObjetivo, profundizar = true) {
         };
     } catch (error) {
         // T10: traducimos el error técnico a un mensaje claro antes de relanzarlo.
+        console.error(`❌ Error en el robot: ${error.message}`);
         throw traducirError(error);
     } finally {
         // T11: cierre GARANTIZADO. Pase lo que pase (éxito o error), cerramos Chrome
