@@ -13,6 +13,30 @@ const path = require('path');
 // Tiempo máximo (ms) que esperamos a que un sitio cargue antes de abortar (T11)
 const TIEMPO_MAXIMO_MS = 30000;
 
+// T10 · Traduce el error técnico de Puppeteer/red a un mensaje claro según su tipo
+function traducirError(error) {
+    const msg = (error && error.message) ? error.message : '';
+    // Timeout de navegación (sitio caído o demasiado lento)
+    if ((error && error.name === 'TimeoutError') || /timeout/i.test(msg)) {
+        return 'El sitio tardó demasiado en responder (timeout). Puede estar caído o muy lento.';
+    }
+    // Dominio inexistente / fallo de DNS
+    if (/ERR_NAME_NOT_RESOLVED|ENOTFOUND|getaddrinfo/i.test(msg)) {
+        return 'No se pudo resolver el dominio. Verificá que la dirección exista.';
+    }
+    // Respuesta HTTP con código de error, marcada desde el flujo principal
+    const httpMatch = msg.match(/^HTTP_STATUS_(\d{3})$/);
+    if (httpMatch) {
+        return `El sitio respondió con un código de error HTTP ${httpMatch[1]}.`;
+    }
+    // Conexión rechazada o caída
+    if (/ERR_CONNECTION_REFUSED|ECONNREFUSED|ERR_CONNECTION|ERR_ABORTED|net::/i.test(msg)) {
+        return 'No se pudo establecer conexión con el sitio (conexión rechazada o caída).';
+    }
+    // Cualquier otro caso no contemplado
+    return 'No se pudo completar el análisis del objetivo.';
+}
+
 // Definimos la función principal asincrónica que recibe la URL a escanear
 async function ejecutarExtraccion(urlObjetivo) {
     // Inicializamos la variable del navegador fuera del try para poder cerrarla en el catch
@@ -26,6 +50,10 @@ async function ejecutarExtraccion(urlObjetivo) {
         const tiempoInicio = Date.now();
         // Navegamos esperando a que el tráfico de red se estabilice, con corte por timeout (T11)
         const respuestaRed = await pagina.goto(urlObjetivo, { waitUntil: 'networkidle2', timeout: TIEMPO_MAXIMO_MS });
+        // T10 · Si el sitio respondió con un código de error (4xx/5xx), lo tratamos como fallo
+        if (respuestaRed && respuestaRed.status() >= 400) {
+            throw new Error(`HTTP_STATUS_${respuestaRed.status()}`);
+        }
         // Definimos la ruta donde se almacenaran las capturas generadas por el robot
         const carpetaCapturas = path.join(__dirname, 'capturas');
         // Verificamos si el directorio de capturas existe, si no, lo creamos automaticamente
@@ -187,8 +215,8 @@ async function ejecutarExtraccion(urlObjetivo) {
             }
         };
     } catch (error) {
-        // Disparamos la alerta de fallo hacia el servidor receptor deteniendo la ejecución
-        throw new Error('Falla en la intercepción de datos. Objetivo inalcanzable.');
+        // T10 · Relanzamos con un mensaje específico según el tipo de fallo (lo logueará server.js · T4)
+        throw new Error(traducirError(error));
     } finally {
         // T11 · Cerramos Chrome SIEMPRE (éxito o error) para no dejar procesos zombies
         if (navegador) {
