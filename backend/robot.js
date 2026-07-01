@@ -11,7 +11,8 @@ const fs = require('fs');
 const path = require('path');
 
 // Tiempo máximo (ms) que esperamos a que un sitio cargue antes de abortar (T11)
-const TIEMPO_MAXIMO_MS = 30000;
+// T16 · Configurable desde .env (TIMEOUT_MS), con 30000 por defecto
+const TIEMPO_MAXIMO_MS = Number(process.env.TIMEOUT_MS) || 30000;
 
 // T10 · Traduce el error técnico de Puppeteer/red a un mensaje claro según su tipo
 function traducirError(error) {
