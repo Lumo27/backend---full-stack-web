@@ -190,6 +190,16 @@ async function ejecutarExtraccion(urlObjetivo) {
         // Interceptamos las cabeceras de red para identificar el servidor que aloja el sitio
         const servidor = respuestaRed.headers()['server'] || 'Oculto';
 
+        // T12 · Detección de tecnologías extra buscando sus firmas en el HTML
+        const tecnologiasExtras = [];
+        const detectar = (nombre, condicion) => { if (condicion) tecnologiasExtras.push(nombre); };
+        detectar('jQuery', $('script[src*="jquery"]').length > 0);
+        detectar('Bootstrap', $('link[href*="bootstrap"], script[src*="bootstrap"]').length > 0);
+        detectar('Tailwind CSS', $('link[href*="tailwind"], script[src*="tailwind"]').length > 0);
+        detectar('Font Awesome', $('link[href*="font-awesome"], link[href*="fontawesome"]').length > 0 || $('[class*="fa-"]').length > 0);
+        detectar('Google Analytics', /google-analytics\.com|googletagmanager\.com|gtag\(/i.test(codigoHtml));
+        detectar('Google Fonts', $('link[href*="fonts.googleapis.com"]').length > 0);
+
         // Ensamblamos y retornamos el objeto JSON con las tres capas de datos tácticos
         return {
             identidad: {
@@ -201,7 +211,9 @@ async function ejecutarExtraccion(urlObjetivo) {
             tecnologias: {
                 servidor: servidor,
                 lenguaje: lenguaje,
-                frameworkFront: frameworkFront
+                frameworkFront: frameworkFront,
+                // T12 · Lista de tecnologías extra detectadas (jQuery, Bootstrap, GA, etc.)
+                extras: tecnologiasExtras
             },
             metricas: {
                 tiempoRespuestaMs: tiempoRespuestaMs,
