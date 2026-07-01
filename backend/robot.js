@@ -2,9 +2,10 @@
 // Importamos la librería de parseo rápido para estructurar el HTML estático en memoria
 const cheerio = require('cheerio');
 // Importamos el motor de automatización para controlar el navegador en segundo plano
-const puppeteer = require('puppeteer');
 
+const  puppeteer = require('puppeteer'); 
 // Importamos el modulo nativo para crear carpetas y administrar archivos
+
 const fs = require('fs');
 // Importamos la utilidad para construir rutas compatibles con cualquier sistema operativo
 const path = require('path');
@@ -37,7 +38,8 @@ async function ejecutarExtraccion(urlObjetivo) {
         await pagina.screenshot({
             path: rutaCaptura,
             fullPage: true
-        });
+        });            
+        
         // Extraemos la fotografía estática del DOM ya renderizado por el motor V8
         const codigoHtml = await pagina.content();
         // Calculamos el tiempo total del proceso de carga en milisegundos
@@ -141,9 +143,17 @@ async function ejecutarExtraccion(urlObjetivo) {
                 pesoDocumentoKb: pesoDocumentoKb,
                 certSslVigente: certSslVigente
             },
-            enlaces: enlaces
-        };
-    } catch (error) {   
+        // =====================================================
+        // === ENLACES (T8) ====================================
+        // Contrato N°1
+        // =====================================================
+            enlaces: {
+                total: enlaces.length,
+                internos: enlaces.filter(enlace => enlace.tipo === 'interno').length,
+                externos: enlaces.filter(enlace => enlace.tipo === 'externo').length,
+                lista: enlaces
+            }
+        };    } catch (error) {   
         // Garantizamos que el proceso de Chrome no quede huérfano consumiendo RAM
         if (navegador) {
             await navegador.close();
