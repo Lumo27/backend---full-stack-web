@@ -75,13 +75,25 @@ async function ejecutarExtraccion(urlObjetivo) {
         const codigoHtml = await pagina.content();
         // Calculamos el tiempo total del proceso de carga en milisegundos
         const tiempoRespuestaMs = Date.now() - tiempoInicio;
-        // Verificamos si la conexión HTTPS es válida interceptando la respuesta de red
-        const certSslVigente = respuestaRed.securityDetails() !== null;
+        // Interceptamos los detalles de seguridad de la conexión una sola vez
+        const detallesSeguridad = respuestaRed.securityDetails();
+        // Verificamos si la conexión HTTPS es válida
+        const certSslVigente = detallesSeguridad !== null;
+        // T13 · Código HTTP con el que respondió el servidor (200, 301, etc.)
+        const statusHttp = respuestaRed.status();
+        // T13 · Versión del protocolo TLS (ej. "TLS 1.3"); null si el sitio no usa HTTPS
+        const protocoloTls = detallesSeguridad ? detallesSeguridad.protocol() : null;
         // Medimos el peso del documento HTML capturado en kilobytes
         const pesoDocumentoKb = (Buffer.byteLength(codigoHtml, 'utf8') / 1024).toFixed(2);
 
         // Montamos el código HTML plano en la memoria del servidor (función de consulta de Cheerio)
         const $ = cheerio.load(codigoHtml);
+        // T13 · Contamos elementos clave del documento con Cheerio
+        const conteos = {
+            imagenes: $('img').length,
+            scripts: $('script').length,
+            enlaces: $('a').length
+        };
         // Rastreamos y limpiamos la etiqueta de título de la cabecera
         const tituloPagina = $('title').text().trim() || 'Sin título';
         // Aislamos el atributo content del metadato de descripción
@@ -194,7 +206,11 @@ async function ejecutarExtraccion(urlObjetivo) {
             metricas: {
                 tiempoRespuestaMs: tiempoRespuestaMs,
                 pesoDocumentoKb: pesoDocumentoKb,
-                certSslVigente: certSslVigente
+                certSslVigente: certSslVigente,
+                // T13 · Métricas extra para el Panel 4
+                statusHttp: statusHttp,
+                protocoloTls: protocoloTls,
+                conteos: conteos
             },
         // =====================================================
         // === ENLACES (T8) ====================================
