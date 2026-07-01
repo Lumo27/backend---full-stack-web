@@ -50,7 +50,8 @@ app.post('/api/escanear', async (req, res) => {
             identidad: datosDelRobot.identidad,
             tecnologias: datosDelRobot.tecnologias,
             metricas: datosDelRobot.metricas,
-            enlaces: datosDelRobot.enlaces
+            enlaces: datosDelRobot.enlaces,
+            rutasInternas: datosDelRobot.rutasInternas
         });
     } catch (error) {
         // Registramos la interrupción del flujo para facilitar el diagnostico posterior
