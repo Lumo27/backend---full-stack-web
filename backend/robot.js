@@ -106,6 +106,31 @@ async function ejecutarExtraccion(urlObjetivo) {
             }
         });
 
+        // 
+        // MAPEO DE RUTAS INTERNAS (Épica F) 
+        //
+        const enlacesInternos = enlaces.filter(enlace => enlace.tipo === 'interno').slice(0, 5); // Limitamos a los primeros 5 enlaces internos
+
+        const rutasInternas = [];
+
+        for (const enlace of enlacesInternos) {
+            const paginaInterna = await navegador.newPage();
+            try {
+                await paginaInterna.goto(enlace.url, { waitUntil: 'networkidle2', timeout: 15000 });
+                const htmlInterno = await paginaInterna.content();
+                const $$ = cheerio.load(htmlInterno);
+
+                rutasInternas.push({
+                    url: enlace.url,
+                    titulo: $$('title').text().trim() || 'Sin título',
+                    descripcion: $$('meta[name="description"]').attr('content') || 'Sin descripción'
+                });
+            } catch (error) {
+                console.error(`Error al procesar la ruta interna ${enlace.url}: ${error.message}`);
+            } finally {
+                await paginaInterna.close();
+            }
+        }
 
         // Detección de framework por la existencia estructural de nodos característicos
         let frameworkFront = 'Desconocido';
@@ -152,8 +177,15 @@ async function ejecutarExtraccion(urlObjetivo) {
                 internos: enlaces.filter(enlace => enlace.tipo === 'interno').length,
                 externos: enlaces.filter(enlace => enlace.tipo === 'externo').length,
                 lista: enlaces
+            },
+        // =====================================================
+        // === MAPEO DE RUTAS INTERNAS (T14 · Épica F) =========
+        // =====================================================
+            rutasInternas: {
+                total: rutasInternas.length,
+                lista: rutasInternas
             }
-        };    } catch (error) {   
+        };    } catch (error) {
         // Garantizamos que el proceso de Chrome no quede huérfano consumiendo RAM
         if (navegador) {
             await navegador.close();
